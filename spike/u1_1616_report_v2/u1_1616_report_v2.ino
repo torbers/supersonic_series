@@ -1,57 +1,66 @@
-
 #include "Slider.h"
 
-#define NODE_COUNT 4
-
+#define NODE_COUNT 12
 Slider slider1;
-Slider slider2;
-uint8_t slider1Pins[NODE_COUNT] = {PIN_PB5, PIN_PB4, PIN_PB1, PIN_PB0};
-uint8_t slider2Pins[NODE_COUNT] = {PIN_PA7, PIN_PA6, PIN_PA5, PIN_PA4};
-uint8_t slider1Driver = 12;
-uint8_t slider2Driver = 13;
 
+uint8_t sensors_pins[NODE_COUNT] = {PIN_PC3, PIN_PC2, PIN_PC1, PIN_PC0, PIN_PB0, PIN_PB1, PIN_PB5, PIN_PB4, PIN_PA6, PIN_PA7, PIN_PA5, PIN_PA4};
+volatile int16_t iv[12];
 
-uint8_t DeviceRegisters[8];
+int16_t max_vals[NODE_COUNT] = {512, 110, 510, 402, 336, 292, 508, 508, 512, 500, 68, 512};
+
+uint8_t cal_max[NODE_COUNT];
 
 
 void setup() {
-  // put your setup code here, to run once:
-  slider1.begin(slider1Pins, slider1Driver);
-  slider2.begin(slider2Pins, slider2Driver);
-  
-  Wire.pins(PIN_PA1, PIN_PA2);
-  Wire.begin(0x62);
-  Wire.onRequest(requestHandler);
+  slider1.begin(sensors_pins);
+  delay(100);
 
+  slider1.update();
+  delay(100);
+
+  for (uint8_t i = 0; i < NODE_COUNT; i++){
+    //ptc_node_set_gain(&slider1.s_nodes[i], 1, 1); 
+    //delay(100);
+  }
+
+  /*
+  ptc_node_set_gain(&slider1.s_nodes[0], 1, 1); 
+  ptc_node_set_gain(&slider1.s_nodes[1], 1, 1); 
+  ptc_node_set_gain(&slider1.s_nodes[2], 1, 1); 
+  ptc_node_set_gain(&slider1.s_nodes[3], 1, 1); 
+  */
+
+  // put your setup code here, to run once:
+  //Wire.pins(PIN_PB1, PIN_PB0);
+  Wire.pins(PIN_PA1, PIN_PA2);
+  
+  Wire.begin(0x61);
+  Wire.onRequest(requestHandler);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   ptc_process(millis());
   slider1.update();
-  slider2.update();
+  slider1.capTouchCurrent[0] -= 504;
 
-  DeviceRegisters[0x00] = slider1.getPosition();
-  DeviceRegisters[0x01] = slider2.getPosition();
-  DeviceRegisters[0x02] = slider1.getPositionHysteresis();
-  DeviceRegisters[0x03] = slider2.getPositionHysteresis();
-
-  DeviceRegisters[0x04] = slider1.getMagnitude();
-  DeviceRegisters[0x05] = slider2.getMagnitude();
-  DeviceRegisters[0x06] = slider1.getMagnitudeHysteresis();
-  DeviceRegisters[0x07] = slider2.getMagnitudeHysteresis();
-
-  DeviceRegisters[0x08] = slider1.isTouched();
-  DeviceRegisters[0x09] = slider2.isTouched();
-
+  for (uint8_t p = 0; p < 12; p++){
+    iv[p] = slider1.capTouchCurrent[p];
+    cal_max[p] = (uint8_t) constrain((float(iv[p]) / float(max_vals[p]) * 255), 0, 255);
+    //iv[p] = slider1.capTouchRead(p);
+  }
 
 }
 
 void requestHandler() {
-  for (uint8_t r = 0; r < 8; r++){
-    Wire.write(DeviceRegisters[r]);
+  for (uint8_t r = 0; r < 12; r++){
+    //Wire.write(values[r]);
+    //Wire.write((uint8_t) (iv[r] >> 8) & 0xFF);
+    //Wire.write((uint8_t) (iv[r]) & 0xFF);
+    Wire.write(cal_max[r]);
   }
 }
+
 
 
 void ptc_event_callback(const ptc_cb_event_t eventType, cap_sensor_t* node) {

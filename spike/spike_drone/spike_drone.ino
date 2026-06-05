@@ -10,10 +10,14 @@
 #include <AudioDelayFeedback.h>
 
 #include <Arduino.h>
-#include <Adafruit_TinyUSB.h>
-#include <MIDI.h>
+//#include <Adafruit_TinyUSB.h>
+//#include <MIDI.h>
 #include <Wire.h>
+#include <Adafruit_NeoPixel.h>
 
+
+
+#define NEO_PIN 8
 
 //#include "Slider.h"
 
@@ -37,9 +41,10 @@
 #define MAX_OCTAVE 10
 
 
-Adafruit_USBD_MIDI usb_midi;
-MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MIDI);
+//Adafruit_USBD_MIDI usb_midi;
+//MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MIDI);
 
+Adafruit_NeoPixel pixel(1, NEO_PIN, NEO_GRB + NEO_KHZ800);
 
 
 // Audio objects
@@ -229,12 +234,12 @@ void updateParameters() {
 void setup() {
   // Hardware setup
   // MIDI
+
+  delay(500);
+/*
   if (!TinyUSBDevice.isInitialized()) {
     TinyUSBDevice.begin(0);
   }
-
-  Serial.begin(115200);
-  MIDI.begin(MIDI_CHANNEL_OMNI);
 
   if (TinyUSBDevice.mounted()) {
     TinyUSBDevice.detach();
@@ -243,12 +248,20 @@ void setup() {
   }
 
 
+  MIDI.begin(MIDI_CHANNEL_OMNI);
+
   usb_midi.setStringDescriptor("TinyUSB MIDI");
 
-  Serial.println("Ok");
 
   MIDI.setHandleNoteOn(handleNoteOn);
   MIDI.setHandleNoteOff(handleNoteOff);
+*/
+  Serial.begin(115200);
+  while (!Serial) {
+    ;  // wait for serial port to connect. Needed for native USB port only
+  }
+
+  Serial.println("Ok");
 
   //Wire.begin();
 
@@ -257,11 +270,16 @@ void setup() {
   //sliderL.begin();
   //sliderR.begin();
 
+  delay(500);
+
   Serial.println("Wire");
 
   Wire.begin();
-  Wire.setClock(1000000);
+  Wire.setClock(100000);
 
+  pixel.begin();
+  pixel.setPixelColor(0, pixel.Color(0, 150, 0));
+  pixel.show();
   // Audio setup
 
   startMozzi(); // :)
@@ -276,7 +294,7 @@ void updateControl(){
   // put changing controls in here
 
   // MIDI
-  MIDI.read();
+ // MIDI.read();
 
 
   // Controls
@@ -290,31 +308,36 @@ void updateControl(){
   //if (slider_read_R != -1) {r_position = slider_read_R; r_touched = true; Serial.println(r_position);}
 
 
-  //Serial.println("Getting wire data");
-  setAddressPointer(0);
-  Wire.requestFrom(0x69, 4);
+  //Serial.println("Getting wire data 0");
+  Wire.requestFrom(0x61, 24);
   while (Wire.available()) {
-    Serial.print((uint8_t)Wire.read(), HEX);
+    //Serial.printf("%02x", (uint8_t)Wire.read());
+    uint16_t val = Wire.read() << 8;
+    val += Wire.read();
+    //Serial.printf("%07d", static_cast<int16_t>(val));
+    Serial.print(' ');
+  }
+  //Serial.println();
+
+  //Serial.println("Getting wire data 1");
+  Wire.requestFrom(0x60, 12);
+  while (Wire.available()) {
+    //Serial.printf("%08b", (uint8_t)Wire.read());
     //Serial.print(' ');
   }
-    //Serial.println("Getting wire data");
-  setAddressPointer(0);
-  Wire.requestFrom(0x69, 4);
+  //Serial.println();
+
+  //Serial.println("Getting wire data 2");
+  Wire.requestFrom(0x62, 4);
   while (Wire.available()) {
-    Serial.print((uint8_t)Wire.read(), HEX);
+    //Serial.printf("%02x", (uint8_t)Wire.read());
     //Serial.print(' ');
   }
-    //Serial.println("Getting wire data");
-  setAddressPointer(0);
-  Wire.requestFrom(0x69, 4);
-  while (Wire.available()) {
-    Serial.print((uint8_t)Wire.read(), HEX);
-    //Serial.print(' ');
-  }
-  Serial.println();
+  //Serial.println();
+  Serial.println("next");
 
   
-  updateParameters();
+  //updateParameters();
 
   // Apply changes
 
@@ -347,15 +370,6 @@ void updateControl(){
 }
 
 
-
-void setAddressPointer(uint8_t address) {
-  Wire.beginTransmission(0x69);    // prepare transmission to slave with address 0x69
-  Wire.write(address);            // Write just the address
-  Wire.endTransmission();
-}
-
-
-
 AudioOutput updateAudio(){
   int amix1 = (saw0.next() + saw1.next()) >> !drive;
   int amix2 = (saw2.next() + saw3.next()) >> !drive;
@@ -385,6 +399,7 @@ AudioOutput updateAudio(){
   return MonoOutput::fromAlmostNBit(10, mixed);
 }
 
+/*
 
 void handleNoteOn(byte channel, byte pitch, byte velocity) {
   // Log when a note is pressed.
@@ -399,3 +414,4 @@ void handleNoteOff(byte channel, byte pitch, byte velocity) {
   // Log when a note is released.
 }
 
+*/
