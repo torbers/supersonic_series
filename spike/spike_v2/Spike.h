@@ -28,6 +28,8 @@ class Spike {
     uint8_t u1_read[NUM_SENSORS];
 
     uint8_t current_chord[2];
+    uint8_t chord_index_arr[5] = {1, 3, 0, 7, 5};
+    uint8_t chord_index; // start at center, then counter clockwise from N
 
 };
 
@@ -93,6 +95,7 @@ uint8_t* Spike::getChord() {
   }
   else {
     current_chord[0] = 0xFF;
+    chord_index = 0;
   }
 
   if (u0_read[ind2] > TOUCH_CUTOFF){
@@ -100,6 +103,12 @@ uint8_t* Spike::getChord() {
   }
   else {
     current_chord[1] = 0xFF;
+  }
+
+  if (current_chord[0] != 0xFF) {
+    chord_index = chord_index_arr[current_chord[0]];
+
+    if (current_chord[1] != 0xFF) {;}
   }
 
   return current_chord;

@@ -7505,16 +7505,6 @@
 		)
 		(uuid "140dfc21-82db-481b-ab95-94fc2bc2c3c6")
 	)
-	(text "new speaker C48542868\nswitch pot direction\nfix + trace (U0_PA6)"
-		(exclude_from_sim no)
-		(at 145.288 169.926 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-		)
-		(uuid "3feb5d85-7fa4-4a7e-a448-5768841dfffd")
-	)
 	(text "audio volume pot"
 		(exclude_from_sim no)
 		(at 98.298 50.292 0)

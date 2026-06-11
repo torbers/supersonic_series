@@ -14,9 +14,22 @@
 Spike spike;
 
 uint8_t note;
-uint8_t base = 24;
-uint8_t oplus = 7;
+uint8_t base = 36;
+uint8_t oplus = 12;
 
+
+
+uint8_t chords[9][4] = {
+  {0, 12, 0, 12}, // Center
+  {0, 4, 7, 12},  // N   Major
+  {0, 0, 0, 12},  // NW  
+  {0, 2, 7, 12},  // W   Sus2
+  {0, 0, 0, 12},  // SW
+  {0, 3, 7, 12},  // S   Minor
+  {0, 0, 0, 12},  // SE
+  {0, 6, 7, 12},  // E   Sus4
+  {0, 0, 0, 12}   // NE
+};
 
 
 
@@ -30,7 +43,7 @@ Oscil <SAW512_NUM_CELLS, MOZZI_AUDIO_RATE> saw4(SAW512_DATA);
 Oscil <SAW512_NUM_CELLS, MOZZI_AUDIO_RATE> saw5(SAW512_DATA);
 Oscil <SAW512_NUM_CELLS, MOZZI_AUDIO_RATE> saw6(SAW512_DATA);
 Oscil <SAW512_NUM_CELLS, MOZZI_AUDIO_RATE> saw7(SAW512_DATA);
-float spread = 0.1;
+float spread = 0.001;
 
 // Filter
 MultiResonantFilter<uint8_t> mf0;
@@ -64,19 +77,22 @@ void updateControl(){
   spike.update();
   Serial.println(spike.u1_read[0]);
   note = spike.getNote();
+  spike.getChord();
 
   mf0.setCutoffFreqAndResonance(filter_position, filter_res);
   mf1.setCutoffFreqAndResonance(filter_position, filter_res);
 
+  uint8_t chord_index = spike.chord_index;
+
   if (note < 0xFF) {
-    saw0.setFreq(mtof(base + note) - spread * 3);
-    saw1.setFreq(mtof(base + note) - spread);
-    saw2.setFreq(mtof(base + note) + spread);
-    saw3.setFreq(mtof(base + note) + spread * 3);
-    saw4.setFreq(mtof(base + note + oplus) - spread * 3);
-    saw5.setFreq(mtof(base + note + oplus) - spread);
-    saw6.setFreq(mtof(base + note + oplus) + spread);
-    saw7.setFreq(mtof(base + note + oplus) - spread * 3);
+    saw0.setFreq(mtof(base + note + chords[chord_index][0]) * (1 + spread * 3));
+    saw1.setFreq(mtof(base + note + chords[chord_index][1]) * (1 - spread));
+    saw2.setFreq(mtof(base + note + chords[chord_index][2]) * (1 + spread));
+    saw3.setFreq(mtof(base + note + chords[chord_index][3]) * (1 - spread * 3));
+    saw4.setFreq(mtof(base + note + oplus + chords[chord_index][0]) * (1 + spread * 3));
+    saw5.setFreq(mtof(base + note + oplus + chords[chord_index][1]) * (1 - spread));
+    saw6.setFreq(mtof(base + note + oplus + chords[chord_index][2]) * (1 + spread));
+    saw7.setFreq(mtof(base + note + oplus + chords[chord_index][3]) * (1 - spread * 3));
   }
   else {
     mf0.setCutoffFreqAndResonance(0, filter_res);
