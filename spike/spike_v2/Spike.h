@@ -1,10 +1,11 @@
 
+#include <Adafruit_MPR121.h>
 #include <Wire.h>
 #include <Arduino.h>
 
 
-#define U0_ADDR 0x60
-#define U1_ADDR 0x61
+#define MPR0_ADDR 0x5A
+#define MPR1_ADDR 0x5B
 #define U2_ADDR 0x62
 
 #define NUM_SENSORS 12
@@ -13,23 +14,54 @@
 
 class Spike {
   public:
+    // sensor chips objects
+    Adafruit_MPR121 mpr0 = Adafruit_MPR121();
+    Adafruit_MPR121 mpr1 = Adafruit_MPR121();
+
     uint8_t begin();
     uint8_t update();
 
-    uint8_t* getChord();
-    uint8_t getABC();
-    uint8_t getPM();
+    // bitmaps of touched pins
+    uint16_t mpr0_touched;
+    uint16_t mpr1_touched;
+    uint16_t mpr0_old;
+    uint16_t mpr1_old;
+
+    // induv pads
+    bool plus_touched;  // momentary
+    bool minus_touched;
+
+    bool pad_a;  // constant
+    bool pad_b;
+    bool pad_c;
+
+    bool pad_n;  // constant
+    bool pad_w;
+    bool pad_s;
+    bool pad_e;
+    bool pad_center;
+
+    uint8_t event_note;
+    uint8_t note;
+    bool note_touched;
+    bool any_note;
+    bool all_off_now;
+
+    //uint8_t* getChord();
+    //uint8_t getABC();
+    int8_t getPM();
 
     uint8_t getNote();
 
+    uint8_t slider_pos_l;
+    uint8_t slider_pos_r;
+    bool slider_touched_l;
+    bool slider_touched_r;
 
-
-    uint8_t u0_read[NUM_SENSORS];
-    uint8_t u1_read[NUM_SENSORS];
 
     uint8_t current_chord[2];
     uint8_t chord_index_arr[5] = {1, 3, 0, 7, 5};
-    uint8_t chord_index; // start at center, then counter clockwise from N
+    uint8_t chord_index = 0; // start at center, then counter clockwise from N
 
 };
 
@@ -38,38 +70,96 @@ uint8_t Spike::begin() {
   Wire.begin();
   Wire.setClock(100000);
 
+  if (!mpr0.begin(MPR0_ADDR, &Wire)) {
+    Serial.println("MPR121 not found, check wiring?");
+    while (1);
+  }
+  Serial.println("MPR121 0 found!");
+
+  mpr0.setAutoconfig(true);
+
+  if (!mpr1.begin(MPR1_ADDR, &Wire)) {
+    Serial.println("MPR121 1 not found, check wiring?");
+    while (1);
+  }
+  Serial.println("MPR121 1 found!");
+
+  mpr1.setAutoconfig(true);
+
   return 0;
 }
 
 
 uint8_t Spike::update() {
-  Wire.requestFrom(U0_ADDR, NUM_SENSORS);
-  uint8_t i = 0;
-  while (Wire.available()) {
-    u0_read[i] = Wire.read();
-    i++;
+  mpr0_old = mpr0_touched;
+  mpr1_old = mpr1_touched;
+
+  mpr0_touched = mpr0.touched();
+  mpr1_touched = mpr1.touched();
+
+  // bitmaps of newly touched or released pins
+  uint16_t events0 = ~ (mpr0_touched & mpr0_old);
+  uint16_t events1 = ~ (mpr1_touched & mpr1_old);
+
+  uint16_t new_touched0 = events0 & mpr0_touched;
+  uint16_t new_touched1 = events1 & mpr1_touched;
+  uint16_t new_released0 = events0 & mpr0_old;
+  uint16_t new_released1 = events1 & mpr1_old;
+
+  // plus, minus, abc
+  plus_touched = new_touched0 & 0b100;
+  minus_touched = new_touched0 & 0b1000;
+
+  pad_a = mpr0_touched & 0b1000000;
+  pad_b = mpr0_touched & 0b10000;
+  pad_c = mpr0_touched & 0b100000;
+
+  pad_n = mpr0_touched & 0b100000000000;
+  pad_w = mpr0_touched & 0b10000000000;
+  pad_s = mpr0_touched & 0b10000000;
+  pad_e = mpr0_touched & 0b1000000000;
+  pad_center = mpr0_touched & 0b1000000000;
+
+  pad_e = pad_e || pad_center;
+
+  // note keys
+  note_touched = true;
+  if      (new_touched1 & 0b100000000000) {event_note = 0;}
+  else if (new_touched1 & 0b010000000000) {event_note = 1;}
+  else if (new_touched1 & 0b001000000000) {event_note = 2;}
+  else if (new_touched1 & 0b000100000000) {event_note = 3;}
+  else if (new_touched1 & 0b000010000000) {event_note = 4;}
+  else if (new_touched1 & 0b000001000000) {event_note = 5;}
+  else if (new_touched1 & 0b000000100000) {event_note = 7;}
+  else if (new_touched1 & 0b000000010000) {event_note = 6;}
+  else if (new_touched1 & 0b000000001000) {event_note = 9;}
+  else if (new_touched1 & 0b000000000100) {event_note = 8;}
+  else if (new_touched1 & 0b000000000010) {event_note = 10;}
+  else if (new_touched1 & 0b000000000001) {event_note = 11;}
+  else {note_touched = false;}
+
+  note = event_note;
+  all_off_now = (!mpr1_touched) && new_released1;
+
+
+  // 1616 sliders
+  Wire.requestFrom(U2_ADDR, 10);
+  uint8_t r = 0;
+    while (Wire.available()) {
+      uint8_t read = Wire.read();
+      //Serial.printf("%02x ", read);
+      if (r == 0) {slider_pos_l = read;}
+      if (r == 1) {slider_pos_r = read;}
+      if (r == 8) {slider_touched_l = read;}
+      if (r == 9) {slider_touched_r = read;}
+      r++;
   }
-
-  Wire.requestFrom(U1_ADDR, NUM_SENSORS);
-  i = 0;
-  while (Wire.available()) {
-    u1_read[i] = Wire.read();
-    i++;
-  }
-
-
-  // highest 2 of 0..4 on U0 or None  // Chord sensors
-  getChord();
-
-  // highest of 5..7 on U0 or None  // ABC sensors
-  
-  // highest of 8 (needs hysterisis) or 9 on U0 or None  // +- sensors
-
-  // highest value of 0..11 on U1 or None  // Note sensors
-
+  //Serial.println();
   return 0;
 
 }
+
+/*
 
 uint8_t* Spike::getChord() {
   // Set and return current_chord, the highest- and second-highest- touched chord sensors.
@@ -114,55 +204,14 @@ uint8_t* Spike::getChord() {
   return current_chord;
 }
 
+*/
 
-uint8_t Spike::getABC() {
-  // Get the highest-touched ABC sensor; return 0xFF if none are touched.
-
-  uint8_t max;
-  uint8_t ind;
-
-  for (uint8_t s = 5; s <= 7; s++) {
-    if (max <= u0_read[s]) {
-      ind = s;
-      max = u0_read[s];
-    }
-  }
-
-  // 0xFF = no touch, 0x00..0x02 = highest touched sensor
-  if (max > TOUCH_CUTOFF) {
-    return ind - 0x05;
-  }
-  else {
-    return 0xFF;
-  }
-}
-
-
-uint8_t Spike::getPM() {
-
-  return 0x00;
+int8_t Spike::getPM() {
+  return (plus_touched - minus_touched);
 }
 
 
 uint8_t Spike::getNote() {
-  // Get the highest touched note sensor number
-  uint8_t max = 0;
-  uint8_t ind;
-
-  for (uint8_t s = 0; s < NUM_SENSORS; s++) {
-    if (max <= u1_read[s]) {
-      ind = s;
-      max = u1_read[s];
-    }
-  }
-
-  if (max > TOUCH_CUTOFF) {
-    return ind;
-  }
-  else {
-    return 0xFF;
-  }
+  return note;
 }
-
-
 

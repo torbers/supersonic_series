@@ -11,7 +11,7 @@ uint8_t slider1Driver = 12;
 uint8_t slider2Driver = 13;
 
 
-uint8_t DeviceRegisters[8];
+uint8_t DeviceRegisters[10];
 
 
 void setup() {
@@ -48,7 +48,7 @@ void loop() {
 }
 
 void requestHandler() {
-  for (uint8_t r = 0; r < 8; r++){
+  for (uint8_t r = 0; r < 10; r++){
     Wire.write(DeviceRegisters[r]);
   }
 }

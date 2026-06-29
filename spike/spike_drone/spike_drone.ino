@@ -10,8 +10,8 @@
 #include <AudioDelayFeedback.h>
 
 #include <Arduino.h>
-//#include <Adafruit_TinyUSB.h>
-//#include <MIDI.h>
+#include <Adafruit_TinyUSB.h>
+#include <MIDI.h>
 #include <Wire.h>
 #include <Adafruit_NeoPixel.h>
 
