@@ -9,8 +9,7 @@
 #include <AudioDelayFeedback.h>
 #include <ADSR.h>
 
-#include <Adafruit_TinyUSB.h>
-#include <MIDI.h>
+#include <USB-MIDI.h>
 
 #include <Adafruit_NeoPixel.h>
 
@@ -20,9 +19,13 @@
 Spike spike;
 Adafruit_NeoPixel pixel(1, 8, NEO_GRB + NEO_KHZ800);
 
+//USBMIDI_Interface midi;
 
-Adafruit_USBD_MIDI usb_midi;
-MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MIDI);
+//Adafruit_USBD_MIDI usb_midi;
+//MIDI_CREATE_INSTANCE(USBMIDI_Interface, midi, MIDI);
+USBMIDI_CREATE_DEFAULT_INSTANCE();
+
+bool new_midi = false;
 
 
 uint8_t note = 0;
@@ -37,7 +40,7 @@ uint8_t chords[9][4] = {
   {0, 5, 7, 12},  // nw sus4
   {0, 3, 7, 12},  // w min
   {0, 3, 7, 10},  // we min7
-  {0, 4, 7, 11},  // s dim
+  {0, 4, 7, 11},  // s 
   {0, 2, 7, 12},  // se sus2
   {0, 7, 7, 12},  // e 5th
   {0, 4, 7, 11}   // ne maj7
@@ -60,7 +63,7 @@ float spread = 0.001;
 // Filter
 MultiResonantFilter<uint8_t> mf0;
 MultiResonantFilter<uint8_t> mf1;
-uint8_t filter_position = 0x80;
+uint8_t filter_position = 0xFF;
 uint8_t filter_res =      0x00;
 uint8_t filter_type =  LOWPASS;
 
@@ -189,13 +192,18 @@ void doPMChanges(){
 
 
 void setup() {
-  Serial.begin(115200);
+
+  delay(100);
   
-  TinyUSBDevice.begin(0);
-  usb_midi.setStringDescriptor("TinyUSB MIDI");
+  Serial.begin(115200);
+
+  MIDI.begin(MIDI_CHANNEL_OMNI);
+
 
   MIDI.setHandleNoteOn(handleNoteOn);
   MIDI.setHandleNoteOff(handleNoteOff);
+
+  MIDI.turnThruOff();
 
 
   spike.begin();
@@ -205,6 +213,8 @@ void setup() {
   envelope.setTimes(attack,decay,sustain,release_ms);
   mf0.setCutoffFreqAndResonance(filter_position, filter_res);
   mf1.setCutoffFreqAndResonance(filter_position, filter_res);
+
+
 }
 
 void loop() {
@@ -213,6 +223,7 @@ void loop() {
 
 void updateControl(){
   spike.update();
+  if (spike.note_touched) {note = spike.getNote();}
 
   MIDI.read();
 
@@ -221,16 +232,15 @@ void updateControl(){
   doSliderChanges();
   doPMChanges();
 
-  Serial.println(spike.mpr0_touched, 2);// Serial.println(spike.mpr1_touched, 2);
-
-  note = spike.getNote();
+  //Serial.println(spike.mpr0_touched, 2);// Serial.println(spike.mpr1_touched, 2);
 
   
   //spike.getChord();
   //uint8_t chord_index = spike.chord_index;
 
 
-  if (spike.mpr1_touched) {
+  if (true) {//(spike.mpr1_touched || new_midi || spike.mpr0_touched) {
+    //if (new_midi) {new_midi = false;}
     saw0.setFreq(mtof(base + note + chords[chord_index][0]) * (1 + spread * 3));
     saw1.setFreq(mtof(base + note + chords[chord_index][1]) * (1 - spread));
     saw2.setFreq(mtof(base + note + chords[chord_index][2]) * (1 + spread));
@@ -288,9 +298,10 @@ AudioOutput updateAudio(){
 
 void handleNoteOn(byte channel, byte pitch, byte velocity) {
   // Log when a note is pressed.
-  envelope.noteOn(true);
   note = pitch % 12;
-  base = (uint8_t) pitch / 12;
+  envelope.noteOn(true);
+  new_midi = true;
+  base = ((uint8_t) pitch / 12) * 12;
 }
 
 void handleNoteOff(byte channel, byte pitch, byte velocity) {
