@@ -64,8 +64,8 @@ float spread = 0.001;
 MultiResonantFilter<uint8_t> mf0;
 MultiResonantFilter<uint8_t> mf1;
 uint8_t filter_position = 0xFF;
-uint8_t filter_res =      0x00;
-uint8_t filter_type =  LOWPASS;
+uint8_t filter_res =      0x80;
+int8_t filter_type =  HIGHPASS;
 
 
 // Delay effect
@@ -187,6 +187,7 @@ void doPMChanges(){
       base += 12;
     }
   }
+  else if (mode == 1) {filter_type += pm; if (filter_type < LOWPASS) {filter_type = HIGHPASS;} else if (filter_type > HIGHPASS) filter_type = LOWPASS;}
   else if (mode == 5) {base += pm;}
 }
 
@@ -211,8 +212,6 @@ void setup() {
   startMozzi();
   envelope.setLevels(255,255,255,0);
   envelope.setTimes(attack,decay,sustain,release_ms);
-  mf0.setCutoffFreqAndResonance(filter_position, filter_res);
-  mf1.setCutoffFreqAndResonance(filter_position, filter_res);
 
 
 }
@@ -278,9 +277,12 @@ AudioOutput updateAudio(){
   //mf0.next((saw0.next() + saw1.next() + saw2.next() + saw3.next())/4);
 
   //mf1.next((saw4.next() + saw5.next() + saw6.next() + saw7.next())/4);
-
-  int bank1 = mf0.low();
-  int bank2 = mf1.low();
+  int bank1;
+  int bank2;
+  
+  if      (filter_type == LOWPASS ) {bank1 =  mf0.low(); bank2 =  mf1.low();}
+  else if (filter_type == BANDPASS) {bank1 = mf0.band(); bank2 = mf1.band();}
+  else if (filter_type == HIGHPASS) {bank1 = mf0.high(); bank2 = mf1.high();}
 
   int filt_sum = (bank1 + bank2) >> 1;
 

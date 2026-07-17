@@ -53,10 +53,10 @@ class Spike {
 
     uint8_t getNote();
 
-    uint8_t slider_pos_l;
-    uint8_t slider_pos_r;
-    bool slider_touched_l;
-    bool slider_touched_r;
+    uint8_t slider_pos_l = 0;
+    uint8_t slider_pos_r = 0;
+    bool slider_touched_l = false;
+    bool slider_touched_r = false;
 
 
     uint8_t current_chord[2];
@@ -145,13 +145,16 @@ uint8_t Spike::update() {
   // 1616 sliders
   Wire.requestFrom(U2_ADDR, 10);
   uint8_t r = 0;
+
+  uint8_t slider_pos_l_;
+  uint8_t slider_pos_r_;
     while (Wire.available()) {
       uint8_t read = Wire.read();
       //Serial.printf("%02x ", read);
-      if (r == 0) {slider_pos_l = read;}
-      if (r == 1) {slider_pos_r = read;}
-      if (r == 8) {slider_touched_l = read;}
-      if (r == 9) {slider_touched_r = read;}
+      if (r == 0) {slider_pos_l_ = read;}
+      if (r == 1) {slider_pos_r_ = read;}
+      if (r == 8) {slider_touched_l = read; slider_pos_l = slider_pos_l_;}
+      if (r == 9) {slider_touched_r = read; slider_pos_r = slider_pos_r_;}
       r++;
   }
   //Serial.println();
