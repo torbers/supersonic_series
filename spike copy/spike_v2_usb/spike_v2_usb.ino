@@ -16,22 +16,20 @@
 #define MOZZI_CONTROL_RATE 256
 //#define MOZZI_AUDIO_RATE 16384
 
+#define CHANNEL 1 // Respond to channel 1
+
+// Hardware interface objects
 Spike spike;
 Adafruit_NeoPixel pixel(1, 8, NEO_GRB + NEO_KHZ800);
 
-//USBMIDI_Interface midi;
-
-//Adafruit_USBD_MIDI usb_midi;
-//MIDI_CREATE_INSTANCE(USBMIDI_Interface, midi, MIDI);
+// USBMIDI interface
 USBMIDI_CREATE_DEFAULT_INSTANCE();
 
 bool new_midi = false;
 
-
 uint8_t note = 0;
 uint8_t base = 36;
 int8_t oplus = 12;
-
 
 
 uint8_t chords[9][4] = {
@@ -45,7 +43,6 @@ uint8_t chords[9][4] = {
   {0, 7, 7, 12},  // e 5th
   {0, 4, 7, 11}   // ne maj7
 };
-
 
 
 // Audio objects
@@ -103,6 +100,7 @@ void setMode() {
   pixel.show();
 }
 
+
 void setChord() {
   if      ((!spike.pad_n) && (!spike.pad_w) && (!spike.pad_s) && (!spike.pad_e)) {chord_index = 0;} // none
 
@@ -126,20 +124,20 @@ void doSliderChanges(){
     pixel.setPixelColor(0, pixel.Color(0, spike.slider_pos_r / 2 + 128, 255));
   }
 
-  if (mode == 0) {
-    if (spike.slider_touched_l) {
+  if (mode == 0) { // Default controls
+    if (spike.slider_touched_l) { // Set filter frequency
       filter_position = spike.slider_pos_l;
       mf0.setCutoffFreqAndResonance(filter_position, filter_res);
       mf1.setCutoffFreqAndResonance(filter_position, filter_res);
     }
-    else if (spike.slider_touched_r) {
+    else if (spike.slider_touched_r) { // Set filter q
       filter_res = spike.slider_pos_r;
       mf0.setCutoffFreqAndResonance(filter_position, filter_res);
       mf1.setCutoffFreqAndResonance(filter_position, filter_res);
     }
   }
 
-  else if (mode == 1) {
+  else if (mode == 1) { // Pad A touched
     if (spike.slider_touched_l) {
       del_samps = ((spike.slider_pos_l * 8) << 16) + 1;
     }
@@ -149,26 +147,26 @@ void doSliderChanges(){
     }
   }
 
-  else if (mode == 3) {
-    if (spike.slider_touched_l) {
+  else if (mode == 3) { // Pad B touched
+    if (spike.slider_touched_l) { // Attack
       attack = spike.slider_pos_l * 2;
       envelope.setTimes(attack,decay,sustain,release_ms);
       
     }
-    else if (spike.slider_touched_r) {
-      do_envelope = (spike.slider_pos_r <= 240);
+    else if (spike.slider_touched_r) { // Release
+      do_envelope = (spike.slider_pos_r <= 240); // If release is higher than 240, amp is always on
       release_ms = spike.slider_pos_r * 2;
       envelope.setTimes(attack,decay,sustain,release_ms);
     }
     
   }
 
-  else if (mode == 5) {
-    if (spike.slider_touched_l) {
+  else if (mode == 5) { // Pad C touched
+    if (spike.slider_touched_l) { // Spread/detune of oscillators
       if (spike.slider_pos_l < 128) {spread = spike.slider_pos_l / 32768.0;}
       else {spread = (spike.slider_pos_l - 128) / 2048.0 + 0.00390625;}
     }
-    else if (spike.slider_touched_r) {
+    else if (spike.slider_touched_r) { // Octaves between the 2 oscillator banks
       oplus = (((int) spike.slider_pos_r / 32) - 2) * 12;
     }
   }
@@ -203,6 +201,7 @@ void setup() {
 
   MIDI.setHandleNoteOn(handleNoteOn);
   MIDI.setHandleNoteOff(handleNoteOff);
+  MIDI.setHandleControlChange(OnControlChange);
 
   MIDI.turnThruOff();
 
@@ -212,13 +211,13 @@ void setup() {
   startMozzi();
   envelope.setLevels(255,255,255,0);
   envelope.setTimes(attack,decay,sustain,release_ms);
-
-
 }
+
 
 void loop() {
   audioHook();
 }
+
 
 void updateControl(){
   spike.update();
@@ -227,19 +226,10 @@ void updateControl(){
   MIDI.read();
 
   setMode();
-  setChord();
+  if (spike.mpr0_touched) {setChord();}
   doSliderChanges();
   doPMChanges();
 
-  //Serial.println(spike.mpr0_touched, 2);// Serial.println(spike.mpr1_touched, 2);
-
-  
-  //spike.getChord();
-  //uint8_t chord_index = spike.chord_index;
-
-
-  if (true) {//(spike.mpr1_touched || new_midi || spike.mpr0_touched) {
-    //if (new_midi) {new_midi = false;}
     saw0.setFreq(mtof(base + note + chords[chord_index][0]) * (1 + spread * 3));
     saw1.setFreq(mtof(base + note + chords[chord_index][1]) * (1 - spread));
     saw2.setFreq(mtof(base + note + chords[chord_index][2]) * (1 + spread));
@@ -248,7 +238,6 @@ void updateControl(){
     saw5.setFreq(mtof(base + note + oplus + chords[chord_index][1]) * (1 - spread));
     saw6.setFreq(mtof(base + note + oplus + chords[chord_index][2]) * (1 + spread));
     saw7.setFreq(mtof(base + note + oplus + chords[chord_index][3]) * (1 - spread * 3));
-  }
 
   if (spike.note_touched) {envelope.noteOn(true);}
   if (spike.all_off_now) {envelope.noteOff();}
@@ -256,8 +245,8 @@ void updateControl(){
 
   envelope.update();
   gain = envelope.next();
-  //Serial.println(oplus);
 }
+
 
 AudioOutput updateAudio(){
   int amix1 = (saw0.next() + saw1.next()) >> !drive;
@@ -274,15 +263,9 @@ AudioOutput updateAudio(){
 
   mf1.next(amix34);
 
-  //mf0.next((saw0.next() + saw1.next() + saw2.next() + saw3.next())/4);
-
-  //mf1.next((saw4.next() + saw5.next() + saw6.next() + saw7.next())/4);
-  int bank1;
-  int bank2;
-  
+  int bank1 = mf0.high(); int bank2 = mf1.high();
   if      (filter_type == LOWPASS ) {bank1 =  mf0.low(); bank2 =  mf1.low();}
   else if (filter_type == BANDPASS) {bank1 = mf0.band(); bank2 = mf1.band();}
-  else if (filter_type == HIGHPASS) {bank1 = mf0.high(); bank2 = mf1.high();}
 
   int filt_sum = (bank1 + bank2) >> 1;
 
@@ -295,18 +278,69 @@ AudioOutput updateAudio(){
 }
 
 
-
-
-
 void handleNoteOn(byte channel, byte pitch, byte velocity) {
   // Log when a note is pressed.
-  note = pitch % 12;
-  envelope.noteOn(true);
-  new_midi = true;
-  base = ((uint8_t) pitch / 12) * 12;
+  if (channel == CHANNEL) {
+    note = pitch % 12;
+    envelope.noteOn(true);
+    new_midi = true;
+    base = ((uint8_t) pitch / 12) * 12;
+  }
 }
 
 void handleNoteOff(byte channel, byte pitch, byte velocity) {
-  // Log when a note is released.
-  envelope.noteOff();
+  if (channel == CHANNEL) {
+    // Log when a note is released.
+    if (note == pitch % 12 && base == (((uint8_t) pitch / 12) * 12)) {envelope.noteOff();}
+  }
+}
+
+void OnControlChange(byte channel, byte number, byte value) {
+  if (channel == CHANNEL) {
+
+    if (number == 70) { // Chord
+      chord_index = value;
+    }
+
+    else if (number == 71) { // Filter resonance (q)
+      filter_res = value * 2;
+      mf0.setCutoffFreqAndResonance(filter_position, filter_res);
+      mf1.setCutoffFreqAndResonance(filter_position, filter_res);
+    }
+
+    else if (number == 72) { // Amp attack
+      attack = value * 4;
+      envelope.setTimes(attack,decay,sustain,release_ms);
+    }
+
+    else if (number == 73) { // Amp release
+      do_envelope = (value <= 120);
+      release_ms = value * 4;
+      envelope.setTimes(attack,decay,sustain,release_ms);
+    }
+
+    else if (number == 74) { // Filter cutoff
+      filter_position = value * 2;
+      mf0.setCutoffFreqAndResonance(filter_position, filter_res);
+      mf1.setCutoffFreqAndResonance(filter_position, filter_res);
+    }
+
+    else if (number == 75) { // Delay time
+      del_samps = ((value * 16) << 16) + 1;
+    }
+
+    else if (number == 76) { // Delay feedback
+      del_fb = value * 2;
+      aDel.setFeedbackLevel((127 - del_fb / 2) + 127);
+    }
+
+    else if (number == 77) { // Spread/detune of oscillators
+      if (value < 64) {spread = value / 32768.0 * 2;}
+      else {spread = ((value * 2) - 128) / 2048.0 + 0.00390625;}
+    }
+
+    else if (number == 78) { // Octaves between the 2 oscillator banks
+      oplus = (((int) value / 16) - 2) * 12;
+    }
+  }
 }
